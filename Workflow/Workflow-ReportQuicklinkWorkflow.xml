@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Workflow PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Workflow explicitTransitions="true" libraries="Identity" name="Report Quicklink Workflow" type="IdentityLifecycle">
+          
+    
+    <Step icon="Start" name="Start" posX="28" posY="10">
+                    
+        
+        <Transition to="Approve Form"/>
+                  
+    
+    </Step>
+          
+    
+    <Step icon="Message" name="Approve Form" posX="148" posY="10">
+                    
+        
+        <Approval name="Report Form of Identity" return="IdentityUser,date">
+                              
+            
+            <Form name="Report Form of Identity">
+                                        
+                
+                <Attributes>
+                                                  
+                    
+                    <Map>
+                                                            
+                        
+                        <entry key="pageTitle" value="Report Form of Identity"/>
+                                                          
+                    
+                    </Map>
+                                                
+                
+                </Attributes>
+                                        
+                
+                <Button action="next" label="Next"/>
+                                        
+                
+                <Button action="back" label="cancel"/>
+                                        
+                
+                <Field displayName="Select Account" name="IdentityUser" postBack="true" required="true" type="identity"/>
+                                        
+                
+                <Field displayName="Date" name="date" postBack="true" required="true" type="Date"/>
+                                      
+            
+            </Form>
+                            
+        
+        </Approval>
+                    
+        
+        <Transition to="Stop"/>
+                  
+    
+    </Step>
+          
+    
+    <Step icon="Stop" name="Stop" posX="268" posY="10"/>
+        
+
+</Workflow>
