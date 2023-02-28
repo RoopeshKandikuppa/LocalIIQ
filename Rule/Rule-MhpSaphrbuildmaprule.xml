@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="MHP SAPHRBuildMapRule" type="Validation">
+          
+    
+    <Description> This rule detects start date and end date. </Description>
+          
+    
+    <Source><![CDATA[     
+  import java.util.HashMap;
+  import org.json.JSONArray;  
+  import org.json.JSONObject; 
+  import java.text.SimpleDateFormat;
+  import java.util.ArrayList;
+  import java.util.List;
+  import sailpoint.tools.JSONDeserializerFactory;
+  import com.sap.conn.jco.JCoDestination;
+  import com.sap.conn.jco.JCoException;
+  import com.sap.conn.jco.JCoFunction;
+  import org.apache.log4j.Logger;
+  import org.apache.log4j.Level;
+  import java.text.DateFormat;
+  import java.text.SimpleDateFormat;
+  import java.util.Date;
+  /* Logger log = Logger.getLogger("rule.mhp.SAPHRBuildMapRule");
+  String ruleName = "MHP SAPHRBuildMapRule";
+
+  if(log.isDebugEnabled()) ("***RUNNING RULE [ " + ruleName +" ] ");*/
+  Map object = new HashMap();
+  String jsonString = "{ \"Actions\": [{ \"ActionTypeCode\" : \"C1\", \"ActionTypeName\": \"Einstellung\", \"ReasonCode\" : \"\", \"ReasonTypeText\": \"\", \"ActionStartDate\" : \"2022-06-27\", \"ActionEndDate\" : \"2023-02-03\" } ,{ \"ActionTypeCode\" : \"C8\", \"ActionTypeName\": \"Austritt\", \"ReasonCode\" : \"\", \"ReasonTypeText\": \"\", \"ActionStartDate\" : \"2023-02-04\", \"ActionEndDate\" : \"2023-02-07\" } ,{ \"ActionTypeCode\" : \"C8\", \"ActionTypeName\": \"Austritt\", \"ReasonCode\" : \"02\", \"ReasonTypeText\": \"Ablauf Befristung\", \"ActionStartDate\" : \"2023-03-09\", \"ActionEndDate\" : \"9999-12-31\" } ,{ \"ActionTypeCode\" : \"C9\", \"ActionTypeName\": \"Wiedereintritt in Unternehmen\", \"ReasonCode\" : \"\", \"ReasonTypeText\": \"\", \"ActionStartDate\" : \"2023-02-08\", \"ActionEndDate\" : \"2023-03-08\" }  ] }";
+  ArrayList tempList = null;
+  ArrayList actionEndDateList = new ArrayList();
+  ArrayList actionRejoinDateList = new ArrayList();
+  //ArrayList actionCodeStringList = (ArrayList) jsnobject;
+  String actionStartDateString = null;
+  String finalEndDateString = null;
+  String finalRejoinDateString = null;
+  String actionEndDateString = null;
+  String actionRejoinDateString = null;
+  String innerMapActionStr = null;
+  String innerMapActionTypeStr = null;
+  HashMap innerMap = null;
+  SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+
+  if(log.isDebugEnabled()) ("***Printing actionCodeStringList "+actionCodeStringList);
+
+  // if (null != actionCodeStringList && actionCodeStringList.size() != 0) {
+  //for (int i = 0; i < actionCodeStringList.size(); i++) {
+  String Infotype0000JSONStr = (String) (jsonString);
+  System.out.println("Infotype0000JSONStr---"+Infotype0000JSONStr);
+  HashMap inputMap = JSONDeserializerFactory.deserialize(HashMap.class, Infotype0000JSONStr);
+  System.out.println("inputMap---"+inputMap);
+  tempList = (ArrayList) inputMap.get("Actions");
+  for (int x = 0; x < tempList.size(); x++) {
+    innerMap = (HashMap) tempList.get(x);
+    innerMapActionStr = (String) innerMap.get("ActionTypeCode");
+    if(innerMapActionStr != null && innerMapActionStr.equalsIgnoreCase("C1")) {
+      actionStartDateString = (String) innerMap.get("ActionStartDate");
+      if (actionStartDateString != null) {
+        object.put("StartDate", actionStartDateString);
+      }
+    }
+
+    if(innerMapActionStr != null && innerMapActionStr.equalsIgnoreCase("C8")) {
+      actionEndDateString = (String) innerMap.get("ActionStartDate");
+      Date date = sdf.parse(actionEndDateString);
+      actionEndDateList.add(date);
+    }
+
+    if(innerMapActionStr != null && innerMapActionStr.equalsIgnoreCase("C9")) {
+      actionRejoinDateString = (String) innerMap.get("ActionStartDate");
+      Date date = sdf.parse(actionRejoinDateString);
+      actionRejoinDateList.add(date);
+
+    }
+  }
+
+  if(actionEndDateList.size() > 1){
+    Collections.sort(actionEndDateList);
+    finalEndDateString = (String) sdf.format(actionEndDateList.get(actionEndDateList.size() -1));
+  } else {
+    finalEndDateString = (String) sdf.format(actionEndDateList.get(0));
+  }
+  if (finalEndDateString != null) {
+    object.put("EndDate", finalEndDateString);
+  }
+
+  if(actionRejoinDateList.size() > 1){
+    Collections.sort(actionRejoinDateList);
+    finalRejoinDateString = (String) sdf.format(actionRejoinDateList.get(actionRejoinDateList.size() -1));
+  } else {
+    finalRejoinDateString = (String) sdf.format(actionRejoinDateList.get(0));
+  }
+  if (actionRejoinDateString != null) {
+    object.put("RejoinDate", finalRejoinDateString);
+  }
+  // }
+  //}
+  return object;
+
+  ]]></Source>
+        
+
+</Rule>
