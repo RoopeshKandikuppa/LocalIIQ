@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE Workflow PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Workflow explicitTransitions="true" libraries="Identity" name="Test-Americana-Workflow-Mover" type="IdentityLifecycle">
+          
+    
+    <Variable initializer="mover" name="flow">
+                    
+        
+        <Description>The flow</Description>
+                  
+    
+    </Variable>
+          
+    
+    <Variable initializer="mover" input="true" name="trace"/>
+          
+    
+    <Variable input="true" name="event" transient="true">
+                    
+        
+        <Description>
+      The IdentityChangeEvent.  It can be used to build
+      the provisioning plan, but does not need to be
+      persisted with the case, so marked as transient.
+    </Description>
+                  
+    
+    </Variable>
+          
+    
+    <Variable input="true" name="identityName">
+                    
+        
+        <Description>The name of the identity.</Description>
+                  
+    
+    </Variable>
+          
+    
+    <Variable initializer="script:(identityDisplayName != void) ? identityDisplayName : resolveDisplayName(identityName)" input="true" name="identityDisplayName">
+                    
+        
+        <Description>
+      The displayName of the identity being updated.
+      Query for this using a projection query and fall back to the name.
+    </Description>
+                  
+    
+    </Variable>
+          
+    
+    <Description>Process a employee to new OU.</Description>
+          
+    
+    <RuleLibraries>
+                    
+        
+        <Reference class="sailpoint.object.Rule" name="LCM Workflow Library"/>
+                  
+    
+    </RuleLibraries>
+          
+    
+    <Step icon="Start" name="Start" posX="28" posY="10">
+                    
+        
+        <Script>
+                              
+            
+            <Source><![CDATA[
+        Identity identity = context.getObjectByName(Identity.class,identityName);
+        Identity oldIdentity = event.getOldObject();
+        Identity newIdentity = event.getNewObject();
+        if(!(oldIdentity.getAttribute("Grade").equalsIgnoreCase(newIdentity.getAttribute("Grade")))) workflow.put("grade","only Grade checking");
+        if( !(oldIdentity.getAttribute("Grade").equalsIgnoreCase(newIdentity.getAttribute("Grade"))) && !(oldIdentity.getAttribute("department").equalsIgnoreCase(newIdentity.getAttribute("department"))) ) workflow.put("grade","Grade and Department changes");
+        if( !(oldIdentity.getAttribute("Grade").equalsIgnoreCase(newIdentity.getAttribute("Grade"))) && !(oldIdentity.getAttribute("PositionName").equalsIgnoreCase(newIdentity.getAttribute("PositionName"))) ) workflow.put("grade","Grade and PositionName changes");
+        
+      ]]></Source>
+                            
+        
+        </Script>
+                    
+        
+        <Transition to="Grade Provisioning" when="workflow.get(&quot;grade&quot;).equalsIgnoreCase(&quot;only Grade checking&quot;)"/>
+                    
+        
+        <Transition to="Create Identity Certification" when="workflow.get(&quot;grade&quot;).equalsIgnoreCase(&quot;Grade and Department changes&quot;) || workflow.get(&quot;grade&quot;).equalsIgnoreCase(&quot;Grade and PositionName changes&quot;)"/>
+                    
+        
+        <Transition to="Create Identity Certification"/>
+                  
+    
+    </Step>
+          
+    
+    <Step icon="Task" name="Create Identity Certification" posX="148" posY="10">
+                    
+        
+        <Description>create Identity certification for the new Mover.</Description>
+                    
+        
+        <Script>
+                              
+            
+            <Source><![CDATA[
+        import sailpoint.api.TaskManager;
+        import sailpoint.object.Certification;
+        import sailpoint.object.CertificationDefinition;
+        import sailpoint.object.Identity;
+        import sailpoint.object.TaskDefinition;
+        import sailpoint.object.TaskResult;
+        import sailpoint.object.TaskSchedule;
+        import sailpoint.object.TaskResult;
+        import sailpoint.tools.xml.XMLObjectFactory;
+        import sailpoint.tools.xml.XMLReferenceResolver;
+        import sailpoint.tools.GeneralException;
+        import sailpoint.object.CertificationSchedule;
+        import sailpoint.api.CertificationScheduler;
+        import java.text.DateFormat;  
+        import java.util.Date;
+
+        Identity oldIdentity = event.getOldObject();
+        Identity newIdentity = event.getNewObject();
+        String oldDepartment = oldIdentity.getAttribute("department");
+        String newDepartment = newIdentity.getAttribute("department");
+        String oldPositionName = oldIdentity.getAttribute("PositionName");
+        String newPositionName = newIdentity.getAttribute("PositionName");
+        Date date = Calendar.getInstance().getTime();
+        String dateToStr = DateFormat.getDateTimeInstance().format(date);
+        Identity identity = context.getObjectByName(Identity.class,identityName);
+
+        //String dateString = sailpoint.tools.Util.dateToString(date,"yyyy-MM-dd HH:mm:ss");
+        List dates = new ArrayList();
+        dates.add(dateToStr);
+
+        if((oldDepartment != null && newDepartment != null && !(oldDepartment.equalsIgnoreCase(newDepartment))) || (oldPositionName != null && newPositionName != null && !(oldPositionName.equalsIgnoreCase(newPositionName)))){
+        workflow.put("oldDepartment",oldIdentity.getAttribute("department"));
+        workflow.put("newDepartment",newIdentity.getAttribute("department"));
+        workflow.put("oldPositionName",oldPositionName);
+        workflow.put("newPositionName",newPositionName);
+        String certifier = oldIdentity.getManager().getName();
+        List identities = new ArrayList();
+        identities.add(identity.getName());
+        Identity requestor = context.getObjectByName(Identity.class, "spadmin");
+
+        CertificationScheduler scheduler = new CertificationScheduler(context);
+        CertificationSchedule schedule = scheduler.initializeScheduleBean(requestor, Certification.Type.Identity);
+        schedule.setRunNow(true);
+        CertificationDefinition definitionTemplate = context.getObjectByName(CertificationDefinition.class, "Identity Certification Template");
+        CertificationDefinition definition = (CertificationDefinition) XMLObjectFactory.getInstance().cloneWithoutId(definitionTemplate, (XMLReferenceResolver)context);
+        definition.setName("Americana-Mover-Identity Certification "+identityName+" "+dates.toString());
+        definition.setCertificationNameTemplate("Americana-Mover-Identity Certification "+identityName+" "+dates.toString());
+
+        definition.setIdentitiesToCertify(identities);
+        definition.setCertifierSelectionType(CertificationDefinition.CertifierSelectionType.Manual);
+        definition.setCertifierName(certifier);
+        definition.setStagingEnabled(false);
+        definition.setCertificationOwner(requestor);
+
+
+        schedule.setDefinition(definition);
+        TaskSchedule taskSchedule = scheduler.saveSchedule(schedule, false);
+        }
+        System.out.println("----=====:::::");
+        List identityLinks = identity.getLinks();
+        for(Link link :identityLinks){
+        if(link.getApplicationName().equalsIgnoreCase("Active Directory")){
+        workflow.put("link",link.getNativeIdentity());
+        workflow.put("sAMAccountName",link.getAttribute("sAMAccountName"));
+        }
+        }
+
+      ]]></Source>
+                            
+        
+        </Script>
+                    
+        
+        <Transition to="Grade Provisioning" when="(workflow.get(&quot;link&quot;) == null) &amp;&amp; (workflow.get(&quot;grade&quot;).equalsIgnoreCase(&quot;Grade and Department changes&quot;))"/>
+                    
+        
+        <Transition to="Grade Provisioning" when="(workflow.get(&quot;grade&quot;).equalsIgnoreCase(&quot;Grade and PositionName changes&quot;))"/>
+                    
+        
+        <Transition to="change OU" when="(workflow.get(&quot;oldDepartment&quot;) != null &amp;&amp; workflow.get(&quot;newDepartment&quot;) != null) &amp;&amp; (!(workflow.get(&quot;oldDepartment&quot;).equalsIgnoreCase(workflow.get(&quot;newDepartment&quot;)))) &amp;&amp; workflow.get(&quot;link&quot;) != null"/>
+                    
+        
+        <Transition to="Stop" when="workflow.get(&quot;link&quot;) == null"/>
+                  
+    
+    </Step>
+          
+    
+    <Step icon="Task" name="change OU" posX="148" posY="10" resultVariable="plan">
+                    
+        
+        <Description>Chnage the Active Directory OU for the mover.</Description>
+                    
+        
+        <Script>
+                              
+            
+            <Source><![CDATA[
+        import sailpoint.api.Provisioner;
+        import sailpoint.object.Identity;
+        import sailpoint.object.ProvisioningPlan;
+        import sailpoint.object.ProvisioningPlan.AccountRequest;
+        import sailpoint.object.ProvisioningPlan.AttributeRequest;
+
+        System.out.println("----=====:::::===========");
+
+        ProvisioningPlan plan = new ProvisioningPlan();
+        Identity identity = context.getObjectByName(Identity.class,identityName);
+        String country = identity.getAttribute("country");
+        String sAMAccount = workflow.get("sAMAccountName");
+        String oldDepart = workflow.get("oldDepartment");
+        if(Util.isNotNullOrEmpty(country) && workflow.get("sAMAccountName") != null && workflow.get("oldDepartment") != null){
+        String distinguishedName = getDistinguishedName(sAMAccount,oldDepart,country);
+        String newOU = distinguishedName.substring(distinguishedName.indexOf(",")+1,distinguishedName.length());
+
+        plan.setIdentity(identity);
+        AccountRequest accountRequest = new AccountRequest();
+        accountRequest.setApplication("Active Directory);
+        accountRequest.setNativeIdentity(workflow.get("link"));
+        accountRequest.add(new AttributeRequest("AC_newParent",ProvisioningPlan.Operation.Set,newOU));
+        plan.add(accountRequest);
+        }
+        System.out.println("----=====:::::................");
+
+        return plan;
+
+      ]]></Source>
+                            
+        
+        </Script>
+                    
+        
+        <Transition to="Launch LCM Provisioning"/>
+                  
+    
+    </Step>
+          
+    
+    <Step icon="Task" name="Launch LCM Provisioning" posX="290" posY="10">
+                    
+        
+        <Arg name="approvalScheme" value="none"/>
+                    
+        
+        <Arg name="flow" value="Mover"/>
+                    
+        
+        <Arg name="identityName" value="ref:identityName"/>
+                    
+        
+        <Arg name="identityDisplayName" value="ref:identityDisplayName"/>
+                    
+        
+        <Arg name="plan" value="ref:plan"/>
+                    
+        
+        <Arg name="launcher" value="ref:launcher"/>
+                    
+        
+        <Arg name="policyScheme" value="none"/>
+                    
+        
+        <Arg name="noTriggers" value="true"/>
+                    
+        
+        <Description>
+      Call the standard process that will process the
+      approval decisions and do provisioning.  This
+      includes calling any configured provisioning
+      connectors and building manual actions.
+    </Description>
+                    
+        
+        <WorkflowRef>
+                              
+            
+            <Reference class="sailpoint.object.Workflow" name="LCM Provisioning"/>
+                            
+        
+        </WorkflowRef>
+                    
+        
+        <Transition to="Grade Provisioning" when="workflow.get(&quot;grade&quot;).equalsIgnoreCase(&quot;Grade and Department changes&quot;)"/>
+                    
+        
+        <Transition to="Stop"/>
+                  
+    
+    </Step>
+          
+    
+    <Step icon="Task" name="Grade Provisioning" posX="290" posY="10">
+                    
+        
+        <Script>
+                              
+            
+            <Source><![CDATA[
+      import sailpoint.object.*;
+        import sailpoint.api.*;
+        lckjbaskjc
+      ]]></Source>
+                            
+        
+        </Script>
+                    
+        
+        <Transition to="Stop"/>
+                  
+    
+    </Step>
+          
+    
+    <Step icon="Stop" name="Stop" posX="268" posY="10"/>
+        
+
+</Workflow>
